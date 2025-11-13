@@ -1,0 +1,31 @@
+﻿@model Odkop.Models.ViewModels.LoginViewModel
+
+@{
+    ViewData["Title"] = "Logowanie";
+}
+
+<h2>Logowanie</h2>
+
+<form asp-action="Login" method="post">
+    <div>
+        <label asp-for="Username"></label><br />
+        <input asp-for="Username" />
+        <span asp-validation-for="Username" style="color:red"></span>
+    </div>
+
+    <div>
+        <label asp-for="Password"></label><br />
+        <input asp-for="Password" type="password" />
+        <span asp-validation-for="Password" style="color:red"></span>
+    </div>
+
+    <div>
+        <button type="submit">Zaloguj się</button>
+    </div>
+
+    <p>Nie masz konta? <a asp-action="Register">Zarejestruj się</a></p>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

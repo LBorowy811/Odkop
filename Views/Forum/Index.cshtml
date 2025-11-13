@@ -1,0 +1,20 @@
+﻿@model List<Odkop.Models.Topic>
+
+<h2>Forum</h2>
+
+<form method="get" asp-action="Index">
+    <input type="text" name="search" placeholder="Szukaj tematów" />
+    <button type="submit">Szukaj</button>
+</form>
+
+<ul>
+    @foreach (var topic in Model)
+    {
+        <li>
+            <a asp-action="TopicDetails" asp-route-id="@topic.Id">@topic.Title</a>
+            (Autor: @topic.Author, @topic.Created)
+        </li>
+    }
+</ul>
+
+<a asp-action="CreateTopic">Dodaj nowy temat</a>

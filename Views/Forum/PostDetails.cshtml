@@ -1,0 +1,10 @@
+﻿@model Odkop.Models.Post
+
+<p>
+    <a asp-action="TopicDetails" asp-route-id="@Model.TopicId">← Powrót do postów</a>
+</p>
+<hr />
+
+<h2>@Model.Title</h2>
+<p>Autor: @Model.Author | Utworzono: @Model.Created</p>
+<p>@Model.Content</p>

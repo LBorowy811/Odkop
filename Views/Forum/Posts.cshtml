@@ -1,0 +1,22 @@
+﻿@model Tuple<Odkop.Models.Topic, List<Odkop.Models.Post>>
+
+<h2>@Model.Item1.Title</h2>
+<p><small>@Model.Item1.Author</small></p>
+<p><a asp-action="CreatePost" asp-route-topicId="@Model.Item1.Id">+ Nowy post</a></p>
+
+@if (Model.Item2.Any())
+{
+    <ul>
+        @foreach (var post in Model.Item2)
+        {
+            <li>
+                <a asp-action="PostDetails" asp-route-id="@post.Id">@post.Title</a>
+                - <small>@post.Author</small>
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p>Brak postów.</p>
+}

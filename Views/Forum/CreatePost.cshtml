@@ -1,0 +1,19 @@
+﻿<h2>Dodaj post</h2>
+
+<form asp-action="CreatePost" method="post">
+    <input type="hidden" name="topicId" value="@ViewBag.TopicId" />
+    <div>
+        <label>Tytuł:</label>
+        <input name="title" />
+    </div>
+    <div>
+        <label>Treść:</label>
+        <textarea name="content"></textarea>
+    </div>
+    <button type="submit">Dodaj post</button>
+</form>
+
+@if (TempData["Error"] != null)
+{
+    <p style="color:red">@TempData["Error"]</p>
+}

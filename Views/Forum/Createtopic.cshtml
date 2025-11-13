@@ -1,0 +1,13 @@
+﻿@model Odkop.Models.Topic
+
+<h2>Dodaj temat</h2>
+
+<form asp-action="CreateTopic" method="post">
+    <input asp-for="Title" />
+    <span asp-validation-for="Title" style="color:red"></span>
+    <button type="submit">Dodaj</button>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

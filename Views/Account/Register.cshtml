@@ -1,0 +1,43 @@
+﻿@model Odkop.Models.ViewModels.RegisterViewModel
+
+@{
+    ViewData["Title"] = "Rejestracja";
+}
+
+<h2>Rejestracja</h2>
+
+<form asp-action="Register" method="post">
+    <div>
+        <label asp-for="Username"></label><br />
+        <input asp-for="Username" />
+        <span asp-validation-for="Username" style="color:red"></span>
+    </div>
+
+    <div>
+        <label asp-for="Email"></label><br />
+        <input asp-for="Email" />
+        <span asp-validation-for="Email" style="color:red"></span>
+    </div>
+
+    <div>
+        <label asp-for="Password"></label><br />
+        <input asp-for="Password" type="password" />
+        <span asp-validation-for="Password" style="color:red"></span>
+    </div>
+
+    <div>
+        <label asp-for="ConfirmPassword"></label><br />
+        <input asp-for="ConfirmPassword" type="password" />
+        <span asp-validation-for="ConfirmPassword" style="color:red"></span>
+    </div>
+
+    <div>
+        <button type="submit">Zarejestruj się</button>
+    </div>
+
+    <p>Masz już konto? <a asp-action="Login">Zaloguj się</a></p>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
