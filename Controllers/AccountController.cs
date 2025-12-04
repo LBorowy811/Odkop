@@ -1,100 +1,87 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Odkop.Data;
 using Odkop.Models;
 using Odkop.Models.ViewModels;
-using System.Text.Json;
 
 namespace Odkop.Controllers
 {
     public class AccountController : Controller
     {
-        private readonly string usersFile = Path.Combine(Directory.GetCurrentDirectory(), "Data", "users.json");
+        private readonly ApplicationDbContext _db;
 
-        //wczytanie listy uzytkownikow z jsona, potem na baze zmienic trzeba
-        private List<User> LoadUsers()
+        public AccountController(ApplicationDbContext db)
         {
-            if (!System.IO.File.Exists(usersFile))
-            {
-                // Tworzymy pusty plik, jeśli go nie ma
-                System.IO.Directory.CreateDirectory(Path.GetDirectoryName(usersFile)!);
-                System.IO.File.WriteAllText(usersFile, "[]");
-                return new List<User>();
-            }
-
-            var json = System.IO.File.ReadAllText(usersFile);
-            return JsonSerializer.Deserialize<List<User>>(json) ?? new List<User>();
+            _db = db;
         }
 
-        //zapis do jsona, trzeba potem na baze zmienic
-        private void SaveUsers(List<User> users)
-        {
-            System.IO.File.WriteAllText(usersFile, JsonSerializer.Serialize(users, new JsonSerializerOptions { WriteIndented = true }));
-        }
-
-        // Rejestracja - GET
+        // REJESTRACJA GET
         public IActionResult Register()
         {
             return View();
         }
 
-        // Rejestracja - POST
+        // REJESTRACJA POST
         [HttpPost]
         public IActionResult Register(RegisterViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+                return View(model);
 
-            var users = LoadUsers();
-
-            //sprawdzenie czy uzytkownik istnieje
-            if (users.Any(u => u.Username.Equals(model.Username, StringComparison.OrdinalIgnoreCase)))
+            // sprawdzenie czy istnieje
+            var exists = _db.Users.Any(u => u.Username.ToLower() == model.Username.ToLower());
+            if (exists)
             {
                 ModelState.AddModelError("", "Użytkownik o tej nazwie już istnieje");
                 return View(model);
             }
 
-            //dodanie uzytkownika
-            users.Add(new User
+            // dodaj usera
+            var user = new User
             {
                 Username = model.Username,
                 Email = model.Email,
                 Password = model.Password
-            });
+            };
 
-            SaveUsers(users);
+            _db.Users.Add(user);
+            _db.SaveChanges();
 
-            HttpContext.Session.SetString("User", model.Username);
+            // zaloguj od razu
+            HttpContext.Session.SetString("User", user.Username);
 
             return RedirectToAction("Index", "Forum");
         }
 
-        // Logowanie - GET
+        // LOGIN GET
         public IActionResult Login()
         {
             return View();
         }
 
-        // Logowanie - POST
+        // LOGIN POST
         [HttpPost]
         public IActionResult Login(LoginViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+                return View(model);
 
-            var users = LoadUsers();
-
-            var user = users.FirstOrDefault(u =>
-                u.Username.Equals(model.Username, StringComparison.OrdinalIgnoreCase) &&
+            var user = _db.Users.FirstOrDefault(u =>
+                u.Username.ToLower() == model.Username.ToLower() &&
                 u.Password == model.Password);
 
-            if (user != null)
+            if (user == null)
             {
-                HttpContext.Session.SetString("User", user.Username);
-                return RedirectToAction("Index", "Forum");
+                ModelState.AddModelError("", "Nieprawidłowy login lub hasło");
+                return View(model);
             }
 
-            ModelState.AddModelError("", "Nieprawidłowy login lub hasło");
-            return View(model);
+            HttpContext.Session.SetString("User", user.Username);
+
+            return RedirectToAction("Index", "Forum");
         }
 
-        //wylogowywanie
+        // WYLOGOWANIE
         public IActionResult Logout()
         {
             HttpContext.Session.Remove("User");

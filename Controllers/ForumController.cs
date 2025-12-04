@@ -1,27 +1,33 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Odkop.Data;
 using Odkop.Models;
-using Odkop.Services;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Odkop.Controllers
 {
     public class ForumController : Controller
     {
-        private readonly ForumService _forumService;
+        private readonly ApplicationDbContext _context;
         private readonly ILogger<ForumController> _logger;
 
-        public ForumController(ForumService forumService, ILogger<ForumController> logger)
+        public ForumController(ApplicationDbContext context, ILogger<ForumController> logger)
         {
-            _forumService = forumService;
+            _context = context;
             _logger = logger;
         }
 
-        public IActionResult Index(string search)
+        public async Task<IActionResult> Index(string search)
         {
-            if (!string.IsNullOrWhiteSpace(search))
-                return View(_forumService.SearchTopics(search));
+            var topics = _context.Topics.AsQueryable();
 
-            return View(_forumService.GetAllTopics());
+            if (!string.IsNullOrWhiteSpace(search))
+                topics = topics.Where(t => t.Title.Contains(search));
+
+            var list = await topics.OrderByDescending(t => t.Created).ToListAsync();
+            return View(list);
         }
 
         public IActionResult CreateTopic()
@@ -33,7 +39,7 @@ namespace Odkop.Controllers
         }
 
         [HttpPost]
-        public IActionResult CreateTopic(Topic model)
+        public async Task<IActionResult> CreateTopic(Topic model)
         {
             var user = HttpContext.Session.GetString("User");
             if (string.IsNullOrEmpty(user)) return RedirectToAction("Login", "Account");
@@ -41,7 +47,11 @@ namespace Odkop.Controllers
             if (ModelState.IsValid)
             {
                 model.Author = user;
-                _forumService.AddTopic(model);
+                model.Created = DateTime.Now;
+
+                _context.Topics.Add(model);
+                await _context.SaveChangesAsync();
+
                 _logger.LogInformation("Dodano temat: {Title} przez {Author}", model.Title, model.Author);
                 return RedirectToAction("Index");
             }
@@ -49,14 +59,17 @@ namespace Odkop.Controllers
             return View(model);
         }
 
-        public IActionResult TopicDetails(int id)
+        public async Task<IActionResult> TopicDetails(int id)
         {
-            var topic = _forumService.GetTopic(id);
+            var topic = await _context.Topics.FindAsync(id);
             if (topic == null) return NotFound();
 
-            var posts = _forumService.GetPostsForTopic(id);
-            ViewBag.User = HttpContext.Session.GetString("User");
+            var posts = await _context.Posts
+                .Where(p => p.TopicId == id)
+                .OrderBy(p => p.Created)
+                .ToListAsync();
 
+            ViewBag.User = HttpContext.Session.GetString("User");
             return View((topic, posts));
         }
 
@@ -70,7 +83,7 @@ namespace Odkop.Controllers
         }
 
         [HttpPost]
-        public IActionResult CreatePost(int topicId, string title, string content)
+        public async Task<IActionResult> CreatePost(int topicId, string title, string content)
         {
             var user = HttpContext.Session.GetString("User");
             if (string.IsNullOrEmpty(user)) return RedirectToAction("Login", "Account");
@@ -81,42 +94,48 @@ namespace Odkop.Controllers
                 return RedirectToAction("CreatePost", new { topicId });
             }
 
-            _forumService.AddPost(new Post
+            var post = new Post
             {
                 TopicId = topicId,
                 Author = user,
                 Title = title,
-                Content = content
-            });
+                Content = content,
+                Created = DateTime.Now
+            };
+
+            _context.Posts.Add(post);
+            await _context.SaveChangesAsync();
 
             return RedirectToAction("TopicDetails", new { id = topicId });
         }
-        public IActionResult PostDetails(int id)
+
+        public async Task<IActionResult> PostDetails(int id)
         {
-            var post = _forumService.GetPost(id);
+            var post = await _context.Posts.FindAsync(id);
             if (post == null) return NotFound();
             return View(post);
         }
-        public IActionResult SearchPosts(int topicId, string query)
+
+        public async Task<IActionResult> SearchPosts(int topicId, string query)
         {
-            var topic = _forumService.GetTopic(topicId);
+            var topic = await _context.Topics.FindAsync(topicId);
             if (topic == null) return NotFound();
 
-            var posts = _forumService.GetPostsForTopic(topicId);
+            var posts = _context.Posts
+                .Where(p => p.TopicId == topicId)
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(query))
             {
                 query = query.ToLower();
-                posts = posts
-                    .Where(p => (p.Title != null && p.Title.ToLower().Contains(query))
-                             || (p.Content != null && p.Content.ToLower().Contains(query)))
-                    .ToList();
+                posts = posts.Where(p => p.Title.ToLower().Contains(query) || p.Content.ToLower().Contains(query));
             }
 
+            var list = await posts.OrderBy(p => p.Created).ToListAsync();
             ViewBag.User = HttpContext.Session.GetString("User");
             ViewBag.Query = query;
 
-            return View("TopicDetails", (topic, posts));
+            return View("TopicDetails", (topic, list));
         }
     }
 }
