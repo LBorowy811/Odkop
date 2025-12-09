@@ -15,8 +15,6 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
 });
 
-builder.Services.AddSingleton<Odkop.Services.ForumService>();
-
 var app = builder.Build();
 
 app.UseStaticFiles();
