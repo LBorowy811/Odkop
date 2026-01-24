@@ -474,6 +474,28 @@ namespace Odkop.Controllers
             return RedirectToAction("Topic", new { id = topicId });
         }
 
+        // Przypinanie/odpinanie wątku
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TogglePin(int id)
+        {
+            var topic = await _context.Topics.FindAsync(id);
+            if (topic == null) return NotFound();
+
+            var userRole = HttpContext.Session.GetString("UserRole");
+            if (userRole != "Admin" && userRole != "Moderator")
+            {
+                TempData["Error"] = "Nie masz uprawnień do przypinania wątków.";
+                return RedirectToAction("Topic", new { id });
+            }
+
+            topic.IsPinned = !topic.IsPinned;
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = topic.IsPinned ? "Wątek został przypięty." : "Wątek został odpięty.";
+            return RedirectToAction("Topic", new { id });
+        }
+
         // Wyszukiwanie
         public async Task<IActionResult> Search(string query, int? forumId, string? searchType)
         {

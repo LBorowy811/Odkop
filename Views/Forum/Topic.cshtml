@@ -27,7 +27,16 @@
         }
         @Model.Topic.Title
     </h2>
-    <div>
+    <div class="d-flex align-items-center gap-2">
+        @if (userRole == "Admin" || userRole == "Moderator")
+        {
+            <form asp-action="TogglePin" asp-route-id="@Model.Topic.Id" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-sm @(Model.Topic.IsPinned ? "btn-outline-warning" : "btn-warning")">
+                    @(Model.Topic.IsPinned ? "Odepnij" : "Przypnij")
+                </button>
+            </form>
+        }
         <small class="text-muted">
             Wyświetlenia: @Model.Topic.ViewCount | Odpowiedzi: @ViewBag.ReplyCount
         </small>
