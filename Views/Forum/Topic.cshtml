@@ -29,7 +29,7 @@
     </h2>
     <div>
         <small class="text-muted">
-            Wyświetlenia: @Model.Topic.ViewCount | Odpowiedzi: @(Model.Topic.PostCount - 1)
+            Wyświetlenia: @Model.Topic.ViewCount | Odpowiedzi: @ViewBag.ReplyCount
         </small>
     </div>
 </div>
@@ -37,29 +37,69 @@
 @foreach (var post in Model.Posts)
 {
     <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div>
-                <strong>@post.AuthorName</strong>
-                <small class="text-muted ms-2">@post.Created.ToString("dd.MM.yyyy HH:mm")</small>
-                @if (post.EditedAt.HasValue)
-                {
-                    <small class="text-muted ms-2">(edytowano @post.EditedAt.Value.ToString("dd.MM.yyyy HH:mm"))</small>
-                }
-            </div>
-            @if (user == post.AuthorName || userRole == "Admin" || userRole == "Moderator")
-            {
-                <div>
-                    <a asp-action="EditPost" asp-route-id="@post.Id" class="btn btn-sm btn-outline-secondary">Edytuj</a>
-                    <form asp-action="DeletePost" asp-route-id="@post.Id" method="post" class="d-inline"
-                          onsubmit="return confirm('Czy na pewno chcesz usunąć ten post?');">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
-                    </form>
-                </div>
-            }
-        </div>
         <div class="card-body">
-            <p class="card-text" style="white-space: pre-wrap;">@post.Content</p>
+            <div class="d-flex">
+                <div class="me-3 text-center" style="min-width: 80px;">
+                    @if (!string.IsNullOrEmpty(post.Author?.AvatarUrl))
+                    {
+                        <img src="@post.Author.AvatarUrl" alt="Avatar" class="rounded-circle mb-2" style="width: 60px; height: 60px; object-fit: cover;" />
+                    }
+                    else
+                    {
+                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto mb-2" style="width: 60px; height: 60px;">
+                            <span class="text-white" style="font-size: 24px;">@post.AuthorName[0].ToString().ToUpper()</span>
+                        </div>
+                    }
+                    <div><strong><a asp-controller="Account" asp-action="ViewProfile" asp-route-id="@post.AuthorId" class="text-decoration-none">@post.AuthorName</a></strong></div>
+                    <small class="text-muted">Posty: @(post.Author?.PostCount ?? 0)</small>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <small class="text-muted">@post.Created.ToString("dd.MM.yyyy HH:mm")</small>
+                        <div>
+                            @if (post.EditedAt.HasValue)
+                            {
+                                <small class="text-muted me-2">(edytowano @post.EditedAt.Value.ToString("dd.MM.yyyy HH:mm"))</small>
+                            }
+                            @if (user == post.AuthorName || userRole == "Admin" || userRole == "Moderator")
+                            {
+                                <a asp-action="EditPost" asp-route-id="@post.Id" class="btn btn-sm btn-outline-secondary">Edytuj</a>
+                                <form asp-action="DeletePost" asp-route-id="@post.Id" method="post" class="d-inline"
+                                      onsubmit="return confirm('Czy na pewno chcesz usunąć ten post?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                    <div style="white-space: pre-wrap;">@post.Content</div>
+                    @if (post.Attachments != null && post.Attachments.Any())
+                    {
+                        <div class="mt-3 pt-3 border-top">
+                            <small class="text-muted">Załączniki:</small>
+                            <div class="d-flex flex-wrap gap-2 mt-1">
+                                @foreach (var att in post.Attachments)
+                                {
+                                    var isImage = att.ContentType.StartsWith("image/");
+                                    @if (isImage)
+                                    {
+                                        <a href="/uploads/attachments/@att.StoredFileName" target="_blank" class="text-decoration-none">
+                                            <img src="/uploads/attachments/@att.StoredFileName" alt="@att.FileName"
+                                                 style="max-width: 200px; max-height: 150px; object-fit: cover;" class="rounded border" />
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a href="/uploads/attachments/@att.StoredFileName" download="@att.FileName" class="btn btn-sm btn-outline-secondary">
+                                            @att.FileName (@(att.FileSize / 1024) KB)
+                                        </a>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
         </div>
     </div>
 }
@@ -69,11 +109,16 @@
     <div class="card mt-4">
         <div class="card-header">Odpowiedz</div>
         <div class="card-body">
-            <form asp-action="CreatePost" method="post">
+            <form asp-action="CreatePost" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="topicId" value="@Model.Topic.Id" />
                 <div class="mb-3">
                     <textarea name="content" class="form-control" rows="5" placeholder="Treść odpowiedzi..." required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Załącznik (opcjonalnie)</label>
+                    <input type="file" name="attachment" class="form-control" />
+                    <small class="text-muted">Max 10MB. Dozwolone: JPG, PNG, GIF, PDF, DOC, TXT, ZIP, RAR</small>
                 </div>
                 <button type="submit" class="btn btn-primary">Wyślij odpowiedź</button>
             </form>

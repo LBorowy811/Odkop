@@ -17,7 +17,7 @@
 
 <div class="card">
     <div class="card-body">
-        <form asp-action="CreateTopic" method="post">
+        <form asp-action="CreateTopic" method="post" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
             <input type="hidden" name="forumId" value="@forum?.Id" />
 
@@ -29,6 +29,12 @@
             <div class="mb-3">
                 <label for="content" class="form-label">Treść pierwszego posta</label>
                 <textarea name="content" id="content" class="form-control" rows="8" required></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Załącznik (opcjonalnie)</label>
+                <input type="file" name="attachment" class="form-control" />
+                <small class="text-muted">Max 10MB. Dozwolone: JPG, PNG, GIF, PDF, DOC, TXT, ZIP, RAR</small>
             </div>
 
             <div class="d-flex gap-2">

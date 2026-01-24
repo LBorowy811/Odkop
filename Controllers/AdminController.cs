@@ -29,6 +29,8 @@ namespace Odkop.Controllers
             ViewBag.ForumCount = await _context.Forums.CountAsync();
             ViewBag.TopicCount = await _context.Topics.CountAsync();
             ViewBag.PostCount = await _context.Posts.CountAsync();
+            ViewBag.AnnouncementCount = await _context.Announcements.CountAsync();
+            ViewBag.BannedWordCount = await _context.BannedWords.CountAsync();
 
             return View();
         }
@@ -308,6 +310,214 @@ namespace Odkop.Controllers
             }
 
             return RedirectToAction("Topic", "Forum", new { id });
+        }
+
+        // ZARZĄDZANIE OGŁOSZENIAMI
+        public async Task<IActionResult> Announcements()
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var announcements = await _context.Announcements
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+
+            return View(announcements);
+        }
+
+        public IActionResult CreateAnnouncement()
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateAnnouncement(Announcement announcement)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            if (ModelState.IsValid)
+            {
+                announcement.AuthorId = HttpContext.Session.GetInt32("UserId");
+                announcement.AuthorName = HttpContext.Session.GetString("User") ?? "Admin";
+                announcement.CreatedAt = DateTime.Now;
+
+                _context.Announcements.Add(announcement);
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Ogłoszenie zostało utworzone.";
+                return RedirectToAction("Announcements");
+            }
+
+            return View(announcement);
+        }
+
+        public async Task<IActionResult> EditAnnouncement(int id)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null) return NotFound();
+
+            return View(announcement);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditAnnouncement(int id, Announcement model)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement == null) return NotFound();
+
+            if (ModelState.IsValid)
+            {
+                announcement.Title = model.Title;
+                announcement.Content = model.Content;
+                announcement.ExpiresAt = model.ExpiresAt;
+                announcement.IsActive = model.IsActive;
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Ogłoszenie zostało zaktualizowane.";
+                return RedirectToAction("Announcements");
+            }
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteAnnouncement(int id)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement != null)
+            {
+                _context.Announcements.Remove(announcement);
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Ogłoszenie zostało usunięte.";
+            }
+
+            return RedirectToAction("Announcements");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleAnnouncement(int id)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var announcement = await _context.Announcements.FindAsync(id);
+            if (announcement != null)
+            {
+                announcement.IsActive = !announcement.IsActive;
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToAction("Announcements");
+        }
+
+        // ZARZĄDZANIE SŁOWAMI ZAKAZANYMI
+        public async Task<IActionResult> BannedWords()
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var words = await _context.BannedWords
+                .OrderBy(w => w.Word)
+                .ToListAsync();
+
+            return View(words);
+        }
+
+        public IActionResult CreateBannedWord()
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateBannedWord(string word, string? reason)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            if (string.IsNullOrWhiteSpace(word))
+            {
+                TempData["Error"] = "Słowo jest wymagane.";
+                return View(new BannedWord());
+            }
+
+            // Sprawdź czy słowo już istnieje
+            var exists = await _context.BannedWords
+                .AnyAsync(w => w.Word.ToLower() == word.ToLower());
+
+            if (exists)
+            {
+                TempData["Error"] = "To słowo już istnieje w słowniku.";
+                return View(new BannedWord { Word = word, Reason = reason });
+            }
+
+            var bannedWord = new BannedWord
+            {
+                Word = word,
+                Reason = reason,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.BannedWords.Add(bannedWord);
+            await _context.SaveChangesAsync();
+            TempData["Success"] = "Słowo zostało dodane do słownika.";
+            return RedirectToAction("BannedWords");
+        }
+
+        public async Task<IActionResult> EditBannedWord(int id)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var word = await _context.BannedWords.FindAsync(id);
+            if (word == null) return NotFound();
+
+            return View(word);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditBannedWord(int id, BannedWord model)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var word = await _context.BannedWords.FindAsync(id);
+            if (word == null) return NotFound();
+
+            if (ModelState.IsValid)
+            {
+                word.Word = model.Word;
+                word.Reason = model.Reason;
+
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Słowo zostało zaktualizowane.";
+                return RedirectToAction("BannedWords");
+            }
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteBannedWord(int id)
+        {
+            if (!IsAdmin()) return RedirectToAction("Login", "Account");
+
+            var word = await _context.BannedWords.FindAsync(id);
+            if (word != null)
+            {
+                _context.BannedWords.Remove(word);
+                await _context.SaveChangesAsync();
+                TempData["Success"] = "Słowo zostało usunięte ze słownika.";
+            }
+
+            return RedirectToAction("BannedWords");
         }
     }
 }

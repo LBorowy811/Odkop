@@ -22,6 +22,24 @@ namespace Odkop.Controllers
             _logger = logger;
         }
 
+        // Sprawdź czy tekst zawiera zakazane słowa
+        private async Task<(bool HasBannedWord, string? FoundWord)> ContainsBannedWord(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return (false, null);
+
+            var bannedWords = await _context.BannedWords.Select(b => b.Word.ToLower()).ToListAsync();
+            var textLower = text.ToLower();
+
+            foreach (var word in bannedWords)
+            {
+                if (textLower.Contains(word))
+                {
+                    return (true, word);
+                }
+            }
+            return (false, null);
+        }
+
         // Strona główna forum - lista kategorii i forów
         public async Task<IActionResult> Index()
         {
@@ -48,6 +66,14 @@ namespace Odkop.Controllers
             ViewBag.UserRole = HttpContext.Session.GetString("UserRole");
             ViewBag.TotalUsers = await _context.Users.CountAsync();
 
+            // Pobierz aktywne ogłoszenia
+            var announcements = await _context.Announcements
+                .Where(a => a.IsActive && (a.ExpiresAt == null || a.ExpiresAt > DateTime.Now))
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(5)
+                .ToListAsync();
+            ViewBag.Announcements = announcements;
+
             return View(categories);
         }
 
@@ -70,16 +96,16 @@ namespace Odkop.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            var topics = _context.Topics
+            var topicsQuery = _context.Topics
                 .Where(t => t.ForumId == id)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                topics = topics.Where(t => t.Title.Contains(search));
+                topicsQuery = topicsQuery.Where(t => t.Title.Contains(search));
             }
 
-            var topicsList = await topics
+            var topicsList = await topicsQuery
                 .OrderByDescending(t => t.IsPinned)
                 .ThenByDescending(t => t.LastPostAt ?? t.Created)
                 .ToListAsync();
@@ -99,7 +125,6 @@ namespace Odkop.Controllers
             var topic = await _context.Topics
                 .Include(t => t.Forum)
                 .ThenInclude(f => f!.Category)
-                .Include(t => t.Posts)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (topic == null) return NotFound();
@@ -119,10 +144,14 @@ namespace Odkop.Controllers
             await _context.SaveChangesAsync();
 
             var posts = await _context.Posts
+                .Include(p => p.Author)
+                .Include(p => p.Attachments)
                 .Where(p => p.TopicId == id)
                 .OrderBy(p => p.Created)
                 .ToListAsync();
 
+            // Pobierz rzeczywistą liczbę odpowiedzi (posty - 1 dla pierwszego posta)
+            ViewBag.ReplyCount = Math.Max(0, posts.Count - 1);
             ViewBag.User = user;
             ViewBag.UserRole = HttpContext.Session.GetString("UserRole");
             ViewBag.CanPost = isLoggedIn || (topic.Forum?.AllowAnonymousPost ?? false);
@@ -154,7 +183,7 @@ namespace Odkop.Controllers
         // Tworzenie nowego wątku - POST
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateTopic(int forumId, string title, string content)
+        public async Task<IActionResult> CreateTopic(int forumId, string title, string content, IFormFile? attachment)
         {
             var forum = await _context.Forums.FindAsync(forumId);
             if (forum == null) return NotFound();
@@ -171,6 +200,25 @@ namespace Odkop.Controllers
             if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(content))
             {
                 TempData["Error"] = "Tytuł i treść są wymagane.";
+                ViewBag.Forum = forum;
+                ViewBag.User = username;
+                return View();
+            }
+
+            // Sprawdź zakazane słowa w tytule i treści
+            var (hasBannedInTitle, bannedWordTitle) = await ContainsBannedWord(title);
+            if (hasBannedInTitle)
+            {
+                TempData["Error"] = $"Tytuł zawiera zakazane słowo: '{bannedWordTitle}'";
+                ViewBag.Forum = forum;
+                ViewBag.User = username;
+                return View();
+            }
+
+            var (hasBannedInContent, bannedWordContent) = await ContainsBannedWord(content);
+            if (hasBannedInContent)
+            {
+                TempData["Error"] = $"Treść zawiera zakazane słowo: '{bannedWordContent}'";
                 ViewBag.Forum = forum;
                 ViewBag.User = username;
                 return View();
@@ -201,6 +249,13 @@ namespace Odkop.Controllers
             };
 
             _context.Posts.Add(post);
+            await _context.SaveChangesAsync();
+
+            // Obsługa załącznika
+            if (attachment != null && attachment.Length > 0)
+            {
+                await SaveAttachment(post.Id, attachment);
+            }
 
             // Zaktualizuj licznik postów użytkownika
             if (userId.HasValue)
@@ -218,10 +273,44 @@ namespace Odkop.Controllers
             return RedirectToAction("Topic", new { id = topic.Id });
         }
 
+        private async Task SaveAttachment(int postId, IFormFile file)
+        {
+            // Sprawdź rozmiar (max 10MB)
+            if (file.Length > 10 * 1024 * 1024) return;
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".doc", ".docx", ".txt", ".zip", ".rar" };
+            var extension = Path.GetExtension(file.FileName).ToLower();
+            if (!allowedExtensions.Contains(extension)) return;
+
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "attachments");
+            Directory.CreateDirectory(uploadsFolder);
+
+            var storedFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsFolder, storedFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var attachment = new Attachment
+            {
+                PostId = postId,
+                FileName = file.FileName,
+                StoredFileName = storedFileName,
+                ContentType = file.ContentType,
+                FileSize = file.Length,
+                UploadedAt = DateTime.Now
+            };
+
+            _context.Attachments.Add(attachment);
+            await _context.SaveChangesAsync();
+        }
+
         // Dodawanie odpowiedzi do wątku - POST
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreatePost(int topicId, string content)
+        public async Task<IActionResult> CreatePost(int topicId, string content, IFormFile? attachment)
         {
             var topic = await _context.Topics
                 .Include(t => t.Forum)
@@ -250,6 +339,14 @@ namespace Odkop.Controllers
                 return RedirectToAction("Topic", new { id = topicId });
             }
 
+            // Sprawdź zakazane słowa
+            var (hasBannedWord, bannedWord) = await ContainsBannedWord(content);
+            if (hasBannedWord)
+            {
+                TempData["Error"] = $"Treść zawiera zakazane słowo: '{bannedWord}'";
+                return RedirectToAction("Topic", new { id = topicId });
+            }
+
             var post = new Post
             {
                 TopicId = topicId,
@@ -260,6 +357,13 @@ namespace Odkop.Controllers
             };
 
             _context.Posts.Add(post);
+            await _context.SaveChangesAsync();
+
+            // Obsługa załącznika
+            if (attachment != null && attachment.Length > 0)
+            {
+                await SaveAttachment(post.Id, attachment);
+            }
 
             // Zaktualizuj statystyki wątku
             topic.PostCount++;
@@ -371,35 +475,59 @@ namespace Odkop.Controllers
         }
 
         // Wyszukiwanie
-        public async Task<IActionResult> Search(string query, int? forumId)
+        public async Task<IActionResult> Search(string query, int? forumId, string? searchType)
         {
+            ViewBag.Query = query;
+            ViewBag.ForumId = forumId;
+            ViewBag.SearchType = searchType ?? "all";
+            ViewBag.Forums = await _context.Forums.ToListAsync();
+
             if (string.IsNullOrWhiteSpace(query))
             {
-                return View(new List<Post>());
+                ViewBag.Topics = new List<Topic>();
+                ViewBag.Posts = new List<Post>();
+                return View();
             }
 
-            var posts = _context.Posts
+            var queryLower = query.ToLower();
+
+            // Wyszukaj wątki po tytułach
+            var topicsQuery = _context.Topics
+                .Include(t => t.Forum)
+                .AsQueryable();
+
+            if (forumId.HasValue)
+            {
+                topicsQuery = topicsQuery.Where(t => t.ForumId == forumId.Value);
+            }
+
+            var topics = await topicsQuery
+                .Where(t => t.Title.ToLower().Contains(queryLower))
+                .OrderByDescending(t => t.LastPostAt ?? t.Created)
+                .Take(25)
+                .ToListAsync();
+
+            // Wyszukaj posty po treści
+            var postsQuery = _context.Posts
                 .Include(p => p.Topic)
                 .ThenInclude(t => t!.Forum)
                 .AsQueryable();
 
             if (forumId.HasValue)
             {
-                posts = posts.Where(p => p.Topic != null && p.Topic.ForumId == forumId.Value);
+                postsQuery = postsQuery.Where(p => p.Topic != null && p.Topic.ForumId == forumId.Value);
             }
 
-            var queryLower = query.ToLower();
-            var results = await posts
+            var posts = await postsQuery
                 .Where(p => p.Content.ToLower().Contains(queryLower))
                 .OrderByDescending(p => p.Created)
-                .Take(50)
+                .Take(25)
                 .ToListAsync();
 
-            ViewBag.Query = query;
-            ViewBag.ForumId = forumId;
-            ViewBag.Forums = await _context.Forums.ToListAsync();
+            ViewBag.Topics = topics;
+            ViewBag.Posts = posts;
 
-            return View(results);
+            return View();
         }
     }
 }

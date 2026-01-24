@@ -6,7 +6,37 @@
 <h2>Mój profil</h2>
 
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-md-3 text-center mb-4">
+        <div class="card">
+            <div class="card-body">
+                @if (!string.IsNullOrEmpty(Model.AvatarUrl))
+                {
+                    <img src="@Model.AvatarUrl" alt="Avatar" class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;" />
+                }
+                else
+                {
+                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 150px; height: 150px;">
+                        <span class="text-white" style="font-size: 48px;">@Model.Username[0].ToString().ToUpper()</span>
+                    </div>
+                }
+                <form asp-action="UploadAvatar" method="post" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <input type="file" name="avatar" class="form-control form-control-sm" accept="image/*" />
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Zmień zdjęcie</button>
+                </form>
+                @if (!string.IsNullOrEmpty(Model.AvatarUrl))
+                {
+                    <form asp-action="DeleteAvatar" method="post" class="mt-2">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń zdjęcie</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
         <div class="card">
             <div class="card-body">
                 <div class="row mb-3">

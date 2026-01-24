@@ -16,6 +16,9 @@ namespace Odkop.Data
         public DbSet<Category> Categories { get; set; }
         public DbSet<Forum> Forums { get; set; }
         public DbSet<ForumModerator> ForumModerators { get; set; }
+        public DbSet<Announcement> Announcements { get; set; }
+        public DbSet<Attachment> Attachments { get; set; }
+        public DbSet<BannedWord> BannedWords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -40,6 +43,13 @@ namespace Odkop.Data
                 .HasOne(p => p.Topic)
                 .WithMany(t => t.Posts)
                 .HasForeignKey(p => p.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Relacja Attachment -> Post
+            modelBuilder.Entity<Attachment>()
+                .HasOne(a => a.Post)
+                .WithMany(p => p.Attachments)
+                .HasForeignKey(a => a.PostId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Relacja ForumModerator (wiele-do-wielu)

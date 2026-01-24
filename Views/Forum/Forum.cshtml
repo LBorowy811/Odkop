@@ -61,7 +61,7 @@
                             @topic.Title
                         </a>
                     </td>
-                    <td class="text-center align-middle">@(topic.PostCount - 1)</td>
+                    <td class="text-center align-middle">@Math.Max(0, topic.PostCount - 1)</td>
                     <td class="text-center align-middle">@topic.ViewCount</td>
                     <td class="align-middle">
                         <small>@topic.AuthorName</small>

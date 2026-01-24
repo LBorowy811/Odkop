@@ -4,11 +4,26 @@
     ViewData["Title"] = "Forum";
     var forumStats = ViewBag.ForumStats as Dictionary<int, ForumStatsViewModel>;
     var totalUsers = ViewBag.TotalUsers;
+    var announcements = ViewBag.Announcements as List<Odkop.Models.Announcement>;
 }
 
 <div class="row">
     <div class="col-md-9">
         <h1 class="mb-4">Odkop Forum</h1>
+
+        @if (announcements != null && announcements.Any())
+        {
+            <div class="mb-4">
+                @foreach (var announcement in announcements)
+                {
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <strong>@announcement.Title</strong>
+                        <p class="mb-0 mt-1">@announcement.Content</p>
+                        <small class="text-muted">@announcement.AuthorName, @announcement.CreatedAt.ToString("dd.MM.yyyy")</small>
+                    </div>
+                }
+            </div>
+        }
 
         @foreach (var category in Model)
         {

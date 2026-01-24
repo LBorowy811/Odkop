@@ -23,5 +23,7 @@ namespace Odkop.Models
 
         public int? EditedById { get; set; }
         public User? EditedBy { get; set; }
+
+        public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     }
 }

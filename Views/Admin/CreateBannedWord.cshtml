@@ -1,0 +1,28 @@
+@model Odkop.Models.BannedWord
+@{
+    ViewData["Title"] = "Dodaj zakazane słowo";
+}
+
+<h2>Dodaj zakazane słowo</h2>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <form asp-action="CreateBannedWord" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label for="word" class="form-label">Słowo lub fraza</label>
+                <input type="text" name="word" id="word" class="form-control" placeholder="np. spam, reklama" value="@Model?.Word" required />
+                <small class="text-muted">Wyszukiwanie nie rozróżnia wielkości liter</small>
+            </div>
+
+            <div class="mb-3">
+                <label for="reason" class="form-label">Powód (opcjonalnie)</label>
+                <input type="text" name="reason" id="reason" class="form-control" placeholder="np. wulgarne, spam" value="@Model?.Reason" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Dodaj</button>
+            <a asp-action="BannedWords" class="btn btn-secondary">Anuluj</a>
+        </form>
+    </div>
+</div>
