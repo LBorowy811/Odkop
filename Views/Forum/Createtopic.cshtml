@@ -1,13 +1,40 @@
-﻿@model Odkop.Models.Topic
-
-<h2>Dodaj temat</h2>
-
-<form asp-action="CreateTopic" method="post">
-    <input asp-for="Title" />
-    <span asp-validation-for="Title" style="color:red"></span>
-    <button type="submit">Dodaj</button>
-</form>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
+@{
+    var forum = ViewBag.Forum as Odkop.Models.Forum;
+    ViewData["Title"] = "Nowy wątek";
 }
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Forum</a></li>
+        <li class="breadcrumb-item">
+            <a asp-action="Forum" asp-route-id="@forum?.Id">@forum?.Name</a>
+        </li>
+        <li class="breadcrumb-item active">Nowy wątek</li>
+    </ol>
+</nav>
+
+<h2>Nowy wątek</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="CreateTopic" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="forumId" value="@forum?.Id" />
+
+            <div class="mb-3">
+                <label for="title" class="form-label">Tytuł wątku</label>
+                <input type="text" name="title" id="title" class="form-control" maxlength="100" required />
+            </div>
+
+            <div class="mb-3">
+                <label for="content" class="form-label">Treść pierwszego posta</label>
+                <textarea name="content" id="content" class="form-control" rows="8" required></textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Utwórz wątek</button>
+                <a asp-action="Forum" asp-route-id="@forum?.Id" class="btn btn-secondary">Anuluj</a>
+            </div>
+        </form>
+    </div>
+</div>

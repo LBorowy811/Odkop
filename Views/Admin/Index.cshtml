@@ -1,0 +1,62 @@
+@{
+    ViewData["Title"] = "Panel administracyjny";
+}
+
+<h2>Panel administracyjny</h2>
+
+<div class="row">
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Użytkownicy</h5>
+                <p class="card-text display-4">@ViewBag.UserCount</p>
+                <a asp-action="Users" class="btn btn-light">Zarządzaj</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Kategorie</h5>
+                <p class="card-text display-4">@ViewBag.CategoryCount</p>
+                <a asp-action="Categories" class="btn btn-light">Zarządzaj</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title">Fora</h5>
+                <p class="card-text display-4">@ViewBag.ForumCount</p>
+                <a asp-action="Forums" class="btn btn-light">Zarządzaj</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Wątki</h5>
+                <p class="card-text display-4">@ViewBag.TopicCount</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Posty</h5>
+                <p class="card-text display-4">@ViewBag.PostCount</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h4>Szybkie akcje</h4>
+    <div class="btn-group">
+        <a asp-action="CreateCategory" class="btn btn-outline-success">Nowa kategoria</a>
+        <a asp-action="CreateForum" class="btn btn-outline-info">Nowe forum</a>
+    </div>
+</div>

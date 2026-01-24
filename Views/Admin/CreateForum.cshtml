@@ -1,0 +1,58 @@
+@model Odkop.Models.Forum
+@{
+    ViewData["Title"] = "Nowe forum";
+    var categories = ViewBag.Categories as List<Odkop.Models.Category>;
+}
+
+<h2>Nowe forum</h2>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <form asp-action="CreateForum" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Nazwa</label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Opis</label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="CategoryId" class="form-label">Kategoria</label>
+                <select asp-for="CategoryId" class="form-select">
+                    <option value="">-- Wybierz kategorię --</option>
+                    @if (categories != null)
+                    {
+                        @foreach (var cat in categories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="DisplayOrder" class="form-label">Kolejność wyświetlania</label>
+                <input asp-for="DisplayOrder" type="number" class="form-control" />
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="AllowAnonymousView" type="checkbox" class="form-check-input" />
+                <label asp-for="AllowAnonymousView" class="form-check-label">Pozwól niezalogowanym przeglądać</label>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="AllowAnonymousPost" type="checkbox" class="form-check-input" />
+                <label asp-for="AllowAnonymousPost" class="form-check-label">Pozwól niezalogowanym pisać</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Utwórz</button>
+            <a asp-action="Forums" class="btn btn-secondary">Anuluj</a>
+        </form>
+    </div>
+</div>

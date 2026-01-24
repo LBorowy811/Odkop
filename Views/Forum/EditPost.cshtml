@@ -1,0 +1,35 @@
+@model Odkop.Models.Post
+@{
+    ViewData["Title"] = "Edytuj post";
+}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Forum</a></li>
+        <li class="breadcrumb-item">
+            <a asp-action="Topic" asp-route-id="@Model.TopicId">@Model.Topic?.Title</a>
+        </li>
+        <li class="breadcrumb-item active">Edytuj post</li>
+    </ol>
+</nav>
+
+<h2>Edytuj post</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditPost" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+
+            <div class="mb-3">
+                <label for="content" class="form-label">Treść</label>
+                <textarea name="content" id="content" class="form-control" rows="8" required>@Model.Content</textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                <a asp-action="Topic" asp-route-id="@Model.TopicId" class="btn btn-secondary">Anuluj</a>
+            </div>
+        </form>
+    </div>
+</div>

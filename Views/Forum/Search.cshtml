@@ -1,0 +1,66 @@
+@model IEnumerable<Odkop.Models.Post>
+@{
+    ViewData["Title"] = "Wyszukiwanie";
+    var forums = ViewBag.Forums as List<Odkop.Models.Forum>;
+}
+
+<h2>Wyszukiwanie</h2>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="query" class="form-label">Szukana fraza</label>
+                    <input type="text" name="query" id="query" value="@ViewBag.Query" class="form-control" placeholder="Wpisz szukaną frazę..." />
+                </div>
+                <div class="col-md-4">
+                    <label for="forumId" class="form-label">Forum</label>
+                    <select name="forumId" id="forumId" class="form-select">
+                        <option value="">Wszystkie fora</option>
+                        @if (forums != null)
+                        {
+                            @foreach (var forum in forums)
+                            {
+                                <option value="@forum.Id" selected="@(ViewBag.ForumId == forum.Id)">@forum.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Szukaj</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(ViewBag.Query as string))
+{
+    <h4>Wyniki wyszukiwania dla: "@ViewBag.Query"</h4>
+
+    @if (Model.Any())
+    {
+        <p class="text-muted">Znaleziono @Model.Count() wyników</p>
+
+        @foreach (var post in Model)
+        {
+            <div class="card mb-2">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <a asp-action="Topic" asp-route-id="@post.TopicId">
+                            @post.Topic?.Title
+                        </a>
+                        <small class="text-muted">w @post.Topic?.Forum?.Name</small>
+                    </h6>
+                    <p class="card-text">@(post.Content.Length > 200 ? post.Content.Substring(0, 200) + "..." : post.Content)</p>
+                    <small class="text-muted">@post.AuthorName, @post.Created.ToString("dd.MM.yyyy HH:mm")</small>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-info">Nie znaleziono żadnych wyników.</div>
+    }
+}

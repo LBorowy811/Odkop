@@ -1,0 +1,94 @@
+@model (Odkop.Models.Topic Topic, List<Odkop.Models.Post> Posts)
+@{
+    ViewData["Title"] = Model.Topic.Title;
+    var user = ViewBag.User as string;
+    var userRole = ViewBag.UserRole as string;
+}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Forum</a></li>
+        <li class="breadcrumb-item">
+            <a asp-action="Forum" asp-route-id="@Model.Topic.ForumId">@Model.Topic.Forum?.Name</a>
+        </li>
+        <li class="breadcrumb-item active">@Model.Topic.Title</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>
+        @if (Model.Topic.IsPinned)
+        {
+            <span class="badge bg-warning text-dark me-2">Przyklejony</span>
+        }
+        @if (Model.Topic.IsLocked)
+        {
+            <span class="badge bg-secondary me-2">Zamknięty</span>
+        }
+        @Model.Topic.Title
+    </h2>
+    <div>
+        <small class="text-muted">
+            Wyświetlenia: @Model.Topic.ViewCount | Odpowiedzi: @(Model.Topic.PostCount - 1)
+        </small>
+    </div>
+</div>
+
+@foreach (var post in Model.Posts)
+{
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <strong>@post.AuthorName</strong>
+                <small class="text-muted ms-2">@post.Created.ToString("dd.MM.yyyy HH:mm")</small>
+                @if (post.EditedAt.HasValue)
+                {
+                    <small class="text-muted ms-2">(edytowano @post.EditedAt.Value.ToString("dd.MM.yyyy HH:mm"))</small>
+                }
+            </div>
+            @if (user == post.AuthorName || userRole == "Admin" || userRole == "Moderator")
+            {
+                <div>
+                    <a asp-action="EditPost" asp-route-id="@post.Id" class="btn btn-sm btn-outline-secondary">Edytuj</a>
+                    <form asp-action="DeletePost" asp-route-id="@post.Id" method="post" class="d-inline"
+                          onsubmit="return confirm('Czy na pewno chcesz usunąć ten post?');">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                    </form>
+                </div>
+            }
+        </div>
+        <div class="card-body">
+            <p class="card-text" style="white-space: pre-wrap;">@post.Content</p>
+        </div>
+    </div>
+}
+
+@if (ViewBag.CanPost == true && !Model.Topic.IsLocked)
+{
+    <div class="card mt-4">
+        <div class="card-header">Odpowiedz</div>
+        <div class="card-body">
+            <form asp-action="CreatePost" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="topicId" value="@Model.Topic.Id" />
+                <div class="mb-3">
+                    <textarea name="content" class="form-control" rows="5" placeholder="Treść odpowiedzi..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Wyślij odpowiedź</button>
+            </form>
+        </div>
+    </div>
+}
+else if (Model.Topic.IsLocked)
+{
+    <div class="alert alert-warning">
+        Ten wątek jest zamknięty. Nie można dodawać nowych odpowiedzi.
+    </div>
+}
+else if (ViewBag.User == null)
+{
+    <div class="alert alert-info">
+        <a asp-controller="Account" asp-action="Login">Zaloguj się</a>, aby odpowiedzieć.
+    </div>
+}
