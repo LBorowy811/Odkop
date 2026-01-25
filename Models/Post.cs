@@ -5,14 +5,25 @@ namespace Odkop.Models
     public class Post
     {
         public int Id { get; set; }
+
         public int TopicId { get; set; }
-        [Required]
-        public string Author { get; set; } = string.Empty;
-        [Required]
-        public string Title { get; set; } = string.Empty;
-        [Required]
+        public Topic? Topic { get; set; }
+
+        public int? AuthorId { get; set; }
+        public User? Author { get; set; }
+
+        public string AuthorName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Treść jest wymagana")]
         public string Content { get; set; } = string.Empty;
+
         public DateTime Created { get; set; } = DateTime.Now;
 
+        public DateTime? EditedAt { get; set; }
+
+        public int? EditedById { get; set; }
+        public User? EditedBy { get; set; }
+
+        public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     }
 }

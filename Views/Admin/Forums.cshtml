@@ -1,0 +1,44 @@
+@model IEnumerable<Odkop.Models.Forum>
+@{
+    ViewData["Title"] = "Zarządzanie forami";
+}
+
+<h2>Zarządzanie forami</h2>
+
+<div class="mb-3">
+    <a asp-action="CreateForum" class="btn btn-primary">Nowe forum</a>
+    <a asp-action="Index" class="btn btn-secondary">Powrót</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nazwa</th>
+            <th>Kategoria</th>
+            <th>Anonimowe przeglądanie</th>
+            <th>Anonimowe pisanie</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var forum in Model)
+        {
+            <tr>
+                <td>@forum.Id</td>
+                <td>@forum.Name</td>
+                <td>@forum.Category?.Name</td>
+                <td>@(forum.AllowAnonymousView ? "Tak" : "Nie")</td>
+                <td>@(forum.AllowAnonymousPost ? "Tak" : "Nie")</td>
+                <td>
+                    <a asp-action="EditForum" asp-route-id="@forum.Id" class="btn btn-sm btn-outline-primary">Edytuj</a>
+                    <form asp-action="DeleteForum" asp-route-id="@forum.Id" method="post" class="d-inline"
+                          onsubmit="return confirm('Czy na pewno chcesz usunąć to forum? Wszystkie wątki i posty zostaną usunięte!');">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

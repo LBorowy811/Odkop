@@ -1,13 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Odkop.Data;
 using Odkop.Models;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Odkop.Controllers
 {
+    public class ForumStatsViewModel
+    {
+        public int TopicCount { get; set; }
+        public int PostCount { get; set; }
+    }
+
     public class ForumController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -19,86 +22,228 @@ namespace Odkop.Controllers
             _logger = logger;
         }
 
-        public async Task<IActionResult> Index(string search)
+        // Sprawdź czy tekst zawiera zakazane słowa
+        private async Task<(bool HasBannedWord, string? FoundWord)> ContainsBannedWord(string text)
         {
-            var topics = _context.Topics.AsQueryable();
+            if (string.IsNullOrWhiteSpace(text)) return (false, null);
 
-            if (!string.IsNullOrWhiteSpace(search))
-                topics = topics.Where(t => t.Title.Contains(search));
+            var bannedWords = await _context.BannedWords.Select(b => b.Word.ToLower()).ToListAsync();
+            var textLower = text.ToLower();
 
-            var list = await topics.OrderByDescending(t => t.Created).ToListAsync();
-            return View(list);
-        }
-
-        public IActionResult CreateTopic()
-        {
-            if (string.IsNullOrEmpty(HttpContext.Session.GetString("User")))
-                return RedirectToAction("Login", "Account");
-
-            return View();
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> CreateTopic(Topic model)
-        {
-            var user = HttpContext.Session.GetString("User");
-            if (string.IsNullOrEmpty(user)) return RedirectToAction("Login", "Account");
-
-            if (ModelState.IsValid)
+            foreach (var word in bannedWords)
             {
-                model.Author = user;
-                model.Created = DateTime.Now;
+                if (textLower.Contains(word))
+                {
+                    return (true, word);
+                }
+            }
+            return (false, null);
+        }
 
-                _context.Topics.Add(model);
-                await _context.SaveChangesAsync();
+        // Strona główna forum - lista kategorii i forów
+        public async Task<IActionResult> Index()
+        {
+            var categories = await _context.Categories
+                .Include(c => c.Forums)
+                .OrderBy(c => c.DisplayOrder)
+                .ToListAsync();
 
-                _logger.LogInformation("Dodano temat: {Title} przez {Author}", model.Title, model.Author);
-                return RedirectToAction("Index");
+            // Pobierz statystyki dla każdego forum
+            var forumStats = await _context.Forums
+                .Select(f => new
+                {
+                    ForumId = f.Id,
+                    TopicCount = f.Topics.Count,
+                    PostCount = f.Topics.SelectMany(t => t.Posts).Count()
+                })
+                .ToDictionaryAsync(
+                    x => x.ForumId,
+                    x => new ForumStatsViewModel { TopicCount = x.TopicCount, PostCount = x.PostCount }
+                );
+
+            ViewBag.ForumStats = forumStats;
+            ViewBag.User = HttpContext.Session.GetString("User");
+            ViewBag.UserRole = HttpContext.Session.GetString("UserRole");
+            ViewBag.TotalUsers = await _context.Users.CountAsync();
+
+            // Pobierz aktywne ogłoszenia
+            var announcements = await _context.Announcements
+                .Where(a => a.IsActive && (a.ExpiresAt == null || a.ExpiresAt > DateTime.Now))
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(5)
+                .ToListAsync();
+            ViewBag.Announcements = announcements;
+
+            return View(categories);
+        }
+
+        // Lista wątków w danym forum
+        public async Task<IActionResult> Forum(int id, string? search)
+        {
+            var forum = await _context.Forums
+                .Include(f => f.Category)
+                .FirstOrDefaultAsync(f => f.Id == id);
+
+            if (forum == null) return NotFound();
+
+            var user = HttpContext.Session.GetString("User");
+            var isLoggedIn = !string.IsNullOrEmpty(user);
+
+            // Sprawdź uprawnienia do oglądania
+            if (!forum.AllowAnonymousView && !isLoggedIn)
+            {
+                TempData["Error"] = "Musisz być zalogowany, aby zobaczyć to forum.";
+                return RedirectToAction("Login", "Account");
             }
 
-            return View(model);
+            var topicsQuery = _context.Topics
+                .Where(t => t.ForumId == id)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                topicsQuery = topicsQuery.Where(t => t.Title.Contains(search));
+            }
+
+            var topicsList = await topicsQuery
+                .OrderByDescending(t => t.IsPinned)
+                .ThenByDescending(t => t.LastPostAt ?? t.Created)
+                .ToListAsync();
+
+            ViewBag.Forum = forum;
+            ViewBag.User = user;
+            ViewBag.UserRole = HttpContext.Session.GetString("UserRole");
+            ViewBag.Search = search;
+            ViewBag.CanPost = isLoggedIn || forum.AllowAnonymousPost;
+
+            return View(topicsList);
         }
 
-        public async Task<IActionResult> TopicDetails(int id)
+        // Wyświetlanie wątku z postami
+        public async Task<IActionResult> Topic(int id)
         {
-            var topic = await _context.Topics.FindAsync(id);
+            var topic = await _context.Topics
+                .Include(t => t.Forum)
+                .ThenInclude(f => f!.Category)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
             if (topic == null) return NotFound();
 
+            var user = HttpContext.Session.GetString("User");
+            var isLoggedIn = !string.IsNullOrEmpty(user);
+
+            // Sprawdź uprawnienia do oglądania
+            if (topic.Forum != null && !topic.Forum.AllowAnonymousView && !isLoggedIn)
+            {
+                TempData["Error"] = "Musisz być zalogowany, aby zobaczyć ten wątek.";
+                return RedirectToAction("Login", "Account");
+            }
+
+            // Zwiększ licznik wyświetleń
+            topic.ViewCount++;
+            await _context.SaveChangesAsync();
+
             var posts = await _context.Posts
+                .Include(p => p.Author)
+                .Include(p => p.Attachments)
                 .Where(p => p.TopicId == id)
                 .OrderBy(p => p.Created)
                 .ToListAsync();
 
-            ViewBag.User = HttpContext.Session.GetString("User");
+            // Pobierz rzeczywistą liczbę odpowiedzi (posty - 1 dla pierwszego posta)
+            ViewBag.ReplyCount = Math.Max(0, posts.Count - 1);
+            ViewBag.User = user;
+            ViewBag.UserRole = HttpContext.Session.GetString("UserRole");
+            ViewBag.CanPost = isLoggedIn || (topic.Forum?.AllowAnonymousPost ?? false);
+            ViewBag.IsLocked = topic.IsLocked;
+
             return View((topic, posts));
         }
 
-        public IActionResult CreatePost(int topicId)
+        // Tworzenie nowego wątku - GET
+        public async Task<IActionResult> CreateTopic(int forumId)
         {
-            if (string.IsNullOrEmpty(HttpContext.Session.GetString("User")))
-                return RedirectToAction("Login", "Account");
+            var forum = await _context.Forums.FindAsync(forumId);
+            if (forum == null) return NotFound();
 
-            ViewBag.TopicId = topicId;
+            var user = HttpContext.Session.GetString("User");
+            var isLoggedIn = !string.IsNullOrEmpty(user);
+
+            if (!isLoggedIn && !forum.AllowAnonymousPost)
+            {
+                TempData["Error"] = "Musisz być zalogowany, aby utworzyć wątek.";
+                return RedirectToAction("Login", "Account");
+            }
+
+            ViewBag.Forum = forum;
+            ViewBag.User = user;
             return View();
         }
 
+        // Tworzenie nowego wątku - POST
         [HttpPost]
-        public async Task<IActionResult> CreatePost(int topicId, string title, string content)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateTopic(int forumId, string title, string content, IFormFile? attachment)
         {
-            var user = HttpContext.Session.GetString("User");
-            if (string.IsNullOrEmpty(user)) return RedirectToAction("Login", "Account");
+            var forum = await _context.Forums.FindAsync(forumId);
+            if (forum == null) return NotFound();
+
+            var username = HttpContext.Session.GetString("User");
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var isLoggedIn = !string.IsNullOrEmpty(username);
+
+            if (!isLoggedIn && !forum.AllowAnonymousPost)
+            {
+                return RedirectToAction("Login", "Account");
+            }
 
             if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(content))
             {
-                TempData["Error"] = "Tytuł i treść posta są wymagane.";
-                return RedirectToAction("CreatePost", new { topicId });
+                TempData["Error"] = "Tytuł i treść są wymagane.";
+                ViewBag.Forum = forum;
+                ViewBag.User = username;
+                return View();
             }
 
+            // Sprawdź zakazane słowa w tytule i treści
+            var (hasBannedInTitle, bannedWordTitle) = await ContainsBannedWord(title);
+            if (hasBannedInTitle)
+            {
+                TempData["Error"] = $"Tytuł zawiera zakazane słowo: '{bannedWordTitle}'";
+                ViewBag.Forum = forum;
+                ViewBag.User = username;
+                return View();
+            }
+
+            var (hasBannedInContent, bannedWordContent) = await ContainsBannedWord(content);
+            if (hasBannedInContent)
+            {
+                TempData["Error"] = $"Treść zawiera zakazane słowo: '{bannedWordContent}'";
+                ViewBag.Forum = forum;
+                ViewBag.User = username;
+                return View();
+            }
+
+            var topic = new Topic
+            {
+                Title = title,
+                ForumId = forumId,
+                AuthorId = userId,
+                AuthorName = username ?? "Anonim",
+                Created = DateTime.Now,
+                LastPostAt = DateTime.Now,
+                PostCount = 1
+            };
+
+            _context.Topics.Add(topic);
+            await _context.SaveChangesAsync();
+
+            // Dodaj pierwszy post
             var post = new Post
             {
-                TopicId = topicId,
-                Author = user,
-                Title = title,
+                TopicId = topic.Id,
+                AuthorId = userId,
+                AuthorName = username ?? "Anonim",
                 Content = content,
                 Created = DateTime.Now
             };
@@ -106,36 +251,305 @@ namespace Odkop.Controllers
             _context.Posts.Add(post);
             await _context.SaveChangesAsync();
 
-            return RedirectToAction("TopicDetails", new { id = topicId });
+            // Obsługa załącznika
+            if (attachment != null && attachment.Length > 0)
+            {
+                await SaveAttachment(post.Id, attachment);
+            }
+
+            // Zaktualizuj licznik postów użytkownika
+            if (userId.HasValue)
+            {
+                var user = await _context.Users.FindAsync(userId.Value);
+                if (user != null)
+                {
+                    user.PostCount++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Utworzono wątek: {Title} przez {Author}", title, topic.AuthorName);
+            return RedirectToAction("Topic", new { id = topic.Id });
         }
 
-        public async Task<IActionResult> PostDetails(int id)
+        private async Task SaveAttachment(int postId, IFormFile file)
         {
-            var post = await _context.Posts.FindAsync(id);
+            // Sprawdź rozmiar (max 10MB)
+            if (file.Length > 10 * 1024 * 1024) return;
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".doc", ".docx", ".txt", ".zip", ".rar" };
+            var extension = Path.GetExtension(file.FileName).ToLower();
+            if (!allowedExtensions.Contains(extension)) return;
+
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "attachments");
+            Directory.CreateDirectory(uploadsFolder);
+
+            var storedFileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsFolder, storedFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var attachment = new Attachment
+            {
+                PostId = postId,
+                FileName = file.FileName,
+                StoredFileName = storedFileName,
+                ContentType = file.ContentType,
+                FileSize = file.Length,
+                UploadedAt = DateTime.Now
+            };
+
+            _context.Attachments.Add(attachment);
+            await _context.SaveChangesAsync();
+        }
+
+        // Dodawanie odpowiedzi do wątku - POST
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreatePost(int topicId, string content, IFormFile? attachment)
+        {
+            var topic = await _context.Topics
+                .Include(t => t.Forum)
+                .FirstOrDefaultAsync(t => t.Id == topicId);
+
+            if (topic == null) return NotFound();
+
+            if (topic.IsLocked)
+            {
+                TempData["Error"] = "Ten wątek jest zamknięty.";
+                return RedirectToAction("Topic", new { id = topicId });
+            }
+
+            var username = HttpContext.Session.GetString("User");
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var isLoggedIn = !string.IsNullOrEmpty(username);
+
+            if (!isLoggedIn && !(topic.Forum?.AllowAnonymousPost ?? false))
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                TempData["Error"] = "Treść jest wymagana.";
+                return RedirectToAction("Topic", new { id = topicId });
+            }
+
+            // Sprawdź zakazane słowa
+            var (hasBannedWord, bannedWord) = await ContainsBannedWord(content);
+            if (hasBannedWord)
+            {
+                TempData["Error"] = $"Treść zawiera zakazane słowo: '{bannedWord}'";
+                return RedirectToAction("Topic", new { id = topicId });
+            }
+
+            var post = new Post
+            {
+                TopicId = topicId,
+                AuthorId = userId,
+                AuthorName = username ?? "Anonim",
+                Content = content,
+                Created = DateTime.Now
+            };
+
+            _context.Posts.Add(post);
+            await _context.SaveChangesAsync();
+
+            // Obsługa załącznika
+            if (attachment != null && attachment.Length > 0)
+            {
+                await SaveAttachment(post.Id, attachment);
+            }
+
+            // Zaktualizuj statystyki wątku
+            topic.PostCount++;
+            topic.LastPostAt = DateTime.Now;
+
+            // Zaktualizuj licznik postów użytkownika
+            if (userId.HasValue)
+            {
+                var user = await _context.Users.FindAsync(userId.Value);
+                if (user != null)
+                {
+                    user.PostCount++;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction("Topic", new { id = topicId });
+        }
+
+        // Edycja posta - GET
+        public async Task<IActionResult> EditPost(int id)
+        {
+            var post = await _context.Posts
+                .Include(p => p.Topic)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
             if (post == null) return NotFound();
+
+            var username = HttpContext.Session.GetString("User");
+            var userRole = HttpContext.Session.GetString("UserRole");
+
+            // Sprawdź czy użytkownik może edytować
+            bool canEdit = post.AuthorName == username || userRole == "Admin" || userRole == "Moderator";
+            if (!canEdit)
+            {
+                TempData["Error"] = "Nie masz uprawnień do edycji tego posta.";
+                return RedirectToAction("Topic", new { id = post.TopicId });
+            }
+
             return View(post);
         }
 
-        public async Task<IActionResult> SearchPosts(int topicId, string query)
+        // Edycja posta - POST
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditPost(int id, string content)
         {
-            var topic = await _context.Topics.FindAsync(topicId);
-            if (topic == null) return NotFound();
+            var post = await _context.Posts.FindAsync(id);
+            if (post == null) return NotFound();
 
-            var posts = _context.Posts
-                .Where(p => p.TopicId == topicId)
-                .AsQueryable();
+            var username = HttpContext.Session.GetString("User");
+            var userId = HttpContext.Session.GetInt32("UserId");
+            var userRole = HttpContext.Session.GetString("UserRole");
 
-            if (!string.IsNullOrWhiteSpace(query))
+            bool canEdit = post.AuthorName == username || userRole == "Admin" || userRole == "Moderator";
+            if (!canEdit)
             {
-                query = query.ToLower();
-                posts = posts.Where(p => p.Title.ToLower().Contains(query) || p.Content.ToLower().Contains(query));
+                TempData["Error"] = "Nie masz uprawnień do edycji tego posta.";
+                return RedirectToAction("Topic", new { id = post.TopicId });
             }
 
-            var list = await posts.OrderBy(p => p.Created).ToListAsync();
-            ViewBag.User = HttpContext.Session.GetString("User");
-            ViewBag.Query = query;
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                TempData["Error"] = "Treść jest wymagana.";
+                return View(post);
+            }
 
-            return View("TopicDetails", (topic, list));
+            post.Content = content;
+            post.EditedAt = DateTime.Now;
+            post.EditedById = userId;
+
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction("Topic", new { id = post.TopicId });
+        }
+
+        // Usuwanie posta
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePost(int id)
+        {
+            var post = await _context.Posts.FindAsync(id);
+            if (post == null) return NotFound();
+
+            var username = HttpContext.Session.GetString("User");
+            var userRole = HttpContext.Session.GetString("UserRole");
+
+            bool canDelete = post.AuthorName == username || userRole == "Admin" || userRole == "Moderator";
+            if (!canDelete)
+            {
+                TempData["Error"] = "Nie masz uprawnień do usunięcia tego posta.";
+                return RedirectToAction("Topic", new { id = post.TopicId });
+            }
+
+            var topicId = post.TopicId;
+            _context.Posts.Remove(post);
+
+            // Zaktualizuj licznik postów w wątku
+            var topic = await _context.Topics.FindAsync(topicId);
+            if (topic != null)
+            {
+                topic.PostCount--;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return RedirectToAction("Topic", new { id = topicId });
+        }
+
+        // Przypinanie/odpinanie wątku
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TogglePin(int id)
+        {
+            var topic = await _context.Topics.FindAsync(id);
+            if (topic == null) return NotFound();
+
+            var userRole = HttpContext.Session.GetString("UserRole");
+            if (userRole != "Admin" && userRole != "Moderator")
+            {
+                TempData["Error"] = "Nie masz uprawnień do przypinania wątków.";
+                return RedirectToAction("Topic", new { id });
+            }
+
+            topic.IsPinned = !topic.IsPinned;
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = topic.IsPinned ? "Wątek został przypięty." : "Wątek został odpięty.";
+            return RedirectToAction("Topic", new { id });
+        }
+
+        // Wyszukiwanie
+        public async Task<IActionResult> Search(string query, int? forumId, string? searchType)
+        {
+            ViewBag.Query = query;
+            ViewBag.ForumId = forumId;
+            ViewBag.SearchType = searchType ?? "all";
+            ViewBag.Forums = await _context.Forums.ToListAsync();
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                ViewBag.Topics = new List<Topic>();
+                ViewBag.Posts = new List<Post>();
+                return View();
+            }
+
+            var queryLower = query.ToLower();
+
+            // Wyszukaj wątki po tytułach
+            var topicsQuery = _context.Topics
+                .Include(t => t.Forum)
+                .AsQueryable();
+
+            if (forumId.HasValue)
+            {
+                topicsQuery = topicsQuery.Where(t => t.ForumId == forumId.Value);
+            }
+
+            var topics = await topicsQuery
+                .Where(t => t.Title.ToLower().Contains(queryLower))
+                .OrderByDescending(t => t.LastPostAt ?? t.Created)
+                .Take(25)
+                .ToListAsync();
+
+            // Wyszukaj posty po treści
+            var postsQuery = _context.Posts
+                .Include(p => p.Topic)
+                .ThenInclude(t => t!.Forum)
+                .AsQueryable();
+
+            if (forumId.HasValue)
+            {
+                postsQuery = postsQuery.Where(p => p.Topic != null && p.Topic.ForumId == forumId.Value);
+            }
+
+            var posts = await postsQuery
+                .Where(p => p.Content.ToLower().Contains(queryLower))
+                .OrderByDescending(p => p.Created)
+                .Take(25)
+                .ToListAsync();
+
+            ViewBag.Topics = topics;
+            ViewBag.Posts = posts;
+
+            return View();
         }
     }
 }

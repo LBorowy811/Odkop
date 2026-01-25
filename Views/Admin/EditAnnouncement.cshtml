@@ -1,0 +1,40 @@
+@model Odkop.Models.Announcement
+@{
+    ViewData["Title"] = "Edytuj ogłoszenie";
+}
+
+<h2>Edytuj ogłoszenie</h2>
+
+<div class="card" style="max-width: 800px;">
+    <div class="card-body">
+        <form asp-action="EditAnnouncement" asp-route-id="@Model.Id" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label">Tytuł</label>
+                <input asp-for="Title" class="form-control" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Content" class="form-label">Treść</label>
+                <textarea asp-for="Content" class="form-control" rows="5"></textarea>
+                <span asp-validation-for="Content" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ExpiresAt" class="form-label">Data wygaśnięcia (opcjonalne)</label>
+                <input asp-for="ExpiresAt" type="date" class="form-control" value="@Model.ExpiresAt?.ToString("yyyy-MM-dd")" />
+                <small class="text-muted">Pozostaw puste, aby ogłoszenie nie wygasało.</small>
+            </div>
+
+            <div class="mb-3 form-check">
+                <input asp-for="IsActive" type="checkbox" class="form-check-input" />
+                <label asp-for="IsActive" class="form-check-label">Aktywne</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+            <a asp-action="Announcements" class="btn btn-secondary">Anuluj</a>
+        </form>
+    </div>
+</div>

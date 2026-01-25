@@ -1,0 +1,42 @@
+@model Odkop.Models.User
+@{
+    ViewData["Title"] = "Edytuj użytkownika";
+}
+
+<h2>Edytuj użytkownika: @Model.Username</h2>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <div class="mb-3">
+            <strong>Nazwa:</strong> @Model.Username
+        </div>
+        <div class="mb-3">
+            <strong>Email:</strong> @Model.Email
+        </div>
+        <div class="mb-3">
+            <strong>Rejestracja:</strong> @Model.RegisteredAt.ToString("dd.MM.yyyy HH:mm")
+        </div>
+        <div class="mb-3">
+            <strong>Liczba postów:</strong> @Model.PostCount
+        </div>
+
+        <hr />
+
+        <form asp-action="EditUser" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@Model.Id" />
+
+            <div class="mb-3">
+                <label for="role" class="form-label">Rola</label>
+                <select name="role" id="role" class="form-select">
+                    <option value="@Odkop.Models.UserRole.User" selected="@(Model.Role == Odkop.Models.UserRole.User)">Użytkownik</option>
+                    <option value="@Odkop.Models.UserRole.Moderator" selected="@(Model.Role == Odkop.Models.UserRole.Moderator)">Moderator</option>
+                    <option value="@Odkop.Models.UserRole.Admin" selected="@(Model.Role == Odkop.Models.UserRole.Admin)">Administrator</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Zapisz</button>
+            <a asp-action="Users" class="btn btn-secondary">Anuluj</a>
+        </form>
+    </div>
+</div>

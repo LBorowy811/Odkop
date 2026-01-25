@@ -1,0 +1,51 @@
+@model IEnumerable<Odkop.Models.BannedWord>
+@{
+    ViewData["Title"] = "Słownik zakazanych słów";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Słownik zakazanych słów</h2>
+    <a asp-action="CreateBannedWord" class="btn btn-primary">Dodaj słowo</a>
+</div>
+
+<div class="alert alert-info">
+    Wiadomości zawierające słowa z tego słownika będą automatycznie blokowane.
+</div>
+
+<div class="card">
+    <table class="table table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Słowo</th>
+                <th>Powód</th>
+                <th>Data dodania</th>
+                <th>Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var word in Model)
+            {
+                <tr>
+                    <td><code>@word.Word</code></td>
+                    <td>@(word.Reason ?? "-")</td>
+                    <td>@word.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        <a asp-action="EditBannedWord" asp-route-id="@word.Id" class="btn btn-sm btn-outline-secondary">Edytuj</a>
+                        <form asp-action="DeleteBannedWord" asp-route-id="@word.Id" method="post" class="d-inline"
+                              onsubmit="return confirm('Czy na pewno chcesz usunąć to słowo?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info mt-3">
+        Słownik jest pusty. <a asp-action="CreateBannedWord">Dodaj pierwsze słowo!</a>
+    </div>
+}

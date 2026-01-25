@@ -1,31 +1,38 @@
-﻿@model Odkop.Models.ViewModels.LoginViewModel
-
+@model Odkop.Models.ViewModels.LoginViewModel
 @{
     ViewData["Title"] = "Logowanie";
 }
 
-<h2>Logowanie</h2>
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Logowanie</h4>
+            </div>
+            <div class="card-body">
+                <form asp-action="Login" method="post">
+                    <div asp-validation-summary="All" class="text-danger"></div>
 
-<form asp-action="Login" method="post">
-    <div>
-        <label asp-for="Username"></label><br />
-        <input asp-for="Username" />
-        <span asp-validation-for="Username" style="color:red"></span>
+                    <div class="mb-3">
+                        <label asp-for="Username" class="form-label">Nazwa użytkownika</label>
+                        <input asp-for="Username" class="form-control" />
+                        <span asp-validation-for="Username" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label">Hasło</label>
+                        <input asp-for="Password" type="password" class="form-control" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Zaloguj się</button>
+                </form>
+
+                <hr />
+                <p class="text-center mb-0">
+                    Nie masz konta? <a asp-action="Register">Zarejestruj się</a>
+                </p>
+            </div>
+        </div>
     </div>
-
-    <div>
-        <label asp-for="Password"></label><br />
-        <input asp-for="Password" type="password" />
-        <span asp-validation-for="Password" style="color:red"></span>
-    </div>
-
-    <div>
-        <button type="submit">Zaloguj się</button>
-    </div>
-
-    <p>Nie masz konta? <a asp-action="Register">Zarejestruj się</a></p>
-</form>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+</div>

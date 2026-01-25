@@ -1,0 +1,87 @@
+@model IEnumerable<Odkop.Models.Topic>
+@{
+    var forum = ViewBag.Forum as Odkop.Models.Forum;
+    ViewData["Title"] = forum?.Name ?? "Forum";
+}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">Forum</a></li>
+        <li class="breadcrumb-item active">@forum?.Name</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>@forum?.Name</h2>
+    @if (ViewBag.CanPost == true)
+    {
+        <a asp-action="CreateTopic" asp-route-forumId="@forum?.Id" class="btn btn-primary">
+            Nowy wątek
+        </a>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(forum?.Description))
+{
+    <p class="text-muted">@forum.Description</p>
+}
+
+<form method="get" class="mb-3">
+    <div class="input-group">
+        <input type="text" name="search" value="@ViewBag.Search" class="form-control" placeholder="Szukaj wątków..." />
+        <button type="submit" class="btn btn-outline-secondary">Szukaj</button>
+    </div>
+</form>
+
+<div class="card">
+    <table class="table table-hover mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 50%">Wątek</th>
+                <th class="text-center">Odpowiedzi</th>
+                <th class="text-center">Wyświetlenia</th>
+                <th>Autor</th>
+                <th>Ostatni post</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var topic in Model)
+            {
+                <tr class="@(topic.IsPinned ? "table-warning" : "")">
+                    <td>
+                        @if (topic.IsPinned)
+                        {
+                            <span class="badge bg-warning text-dark me-1">Przyklejony</span>
+                        }
+                        @if (topic.IsLocked)
+                        {
+                            <span class="badge bg-secondary me-1">Zamknięty</span>
+                        }
+                        <a asp-action="Topic" asp-route-id="@topic.Id" class="text-decoration-none fw-bold">
+                            @topic.Title
+                        </a>
+                    </td>
+                    <td class="text-center align-middle">@Math.Max(0, topic.PostCount - 1)</td>
+                    <td class="text-center align-middle">@topic.ViewCount</td>
+                    <td class="align-middle">
+                        <small>@topic.AuthorName</small>
+                    </td>
+                    <td class="align-middle">
+                        <small class="text-muted">@((topic.LastPostAt ?? topic.Created).ToString("dd.MM.yyyy HH:mm"))</small>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info mt-3">
+        Brak wątków w tym forum.
+        @if (ViewBag.CanPost == true)
+        {
+            <a asp-action="CreateTopic" asp-route-forumId="@forum?.Id">Utwórz pierwszy wątek!</a>
+        }
+    </div>
+}

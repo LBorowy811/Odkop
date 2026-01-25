@@ -1,0 +1,44 @@
+@model IEnumerable<Odkop.Models.Category>
+@{
+    ViewData["Title"] = "Zarządzanie kategoriami";
+}
+
+<h2>Zarządzanie kategoriami</h2>
+
+<div class="mb-3">
+    <a asp-action="CreateCategory" class="btn btn-primary">Nowa kategoria</a>
+    <a asp-action="Index" class="btn btn-secondary">Powrót</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nazwa</th>
+            <th>Opis</th>
+            <th>Kolejność</th>
+            <th>Forów</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var category in Model)
+        {
+            <tr>
+                <td>@category.Id</td>
+                <td>@category.Name</td>
+                <td>@category.Description</td>
+                <td>@category.DisplayOrder</td>
+                <td>@category.Forums.Count</td>
+                <td>
+                    <a asp-action="EditCategory" asp-route-id="@category.Id" class="btn btn-sm btn-outline-primary">Edytuj</a>
+                    <form asp-action="DeleteCategory" asp-route-id="@category.Id" method="post" class="d-inline"
+                          onsubmit="return confirm('Czy na pewno chcesz usunąć tę kategorię? Wszystkie fora w tej kategorii zostaną usunięte!');">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
